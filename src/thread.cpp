@@ -4,8 +4,8 @@
 using namespace Rcpp;
 
 // [[Rcpp::export]]
-Rcpp::RObject thread_evaluate (Rcpp::Function _function, Rcpp::RObject _data)
+Rcpp::RObject evaluate (Rcpp::Function fun, Rcpp::RObject data)
 {
-  return _function(_data);
+  return fun(data);
 }
 
