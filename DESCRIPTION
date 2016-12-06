@@ -8,7 +8,7 @@ Maintainer: Lukasz A. Bartnik <l.bartnik@gmail.com>
 Description: Attempt at threads in R.
 License: MIT + file LICENSE
 Imports:
-    Rcpp
+    Rcpp (>= 0.12.8)
 Suggests:
     testthat,
     knitr,
