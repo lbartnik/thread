@@ -36,6 +36,7 @@
 #include "cppthreads.h"
 #include "threading.h"
 #include "is_something.h"
+#include "rinterpreter.h"
 
 #include <thread>
 #include <sstream>
@@ -45,13 +46,19 @@
 __attribute__((constructor))
 static void initialize_threading ()
 {
-  claim_R_interpreter();
+  RInterpreterHandle rInterpreter;
+  rInterpreter.claim();
 }
 
 __attribute__((destructor))
 static void teardown_threading ()
 {
-  release_R_interpreter();
+  // TODO make sure we never exit before all threads are joined()
+
+  // TODO is it even needed to release synchronization variables?
+  //      maybe their destructors take care of everything?
+  RInterpreterHandle rInterpreter;
+  rInterpreter.release(false);
 }
 
 
@@ -98,14 +105,23 @@ static void C_thread_finalizer (SEXP ptr)
 {
   if (!R_ExternalPtrAddr(ptr)) return;
   
+  RInterpreterHandle rInterpreter;
+  rInterpreter.claim();
+  
   std::thread * handle = (std::thread*)R_ExternalPtrAddr(ptr);
 
-  handle->join();
+  if (handle->joinable()) {
+    rInterpreter.release();
+    handle->join();
+    rInterpreter.claim();
+  }
   handle->~thread();
 
   //Rf_perror("error while finalizing child process");
 
   R_ClearExternalPtr(ptr); /* not really needed */
+  
+  rInterpreter.release();
 }
 
 
@@ -130,13 +146,17 @@ std::thread * extract_thread_handle (SEXP _handle)
 
 SEXP C_thread_yield ()
 {
-  yield_R_interpreter();
+  RInterpreterHandle rInterpreter;
+  rInterpreter.yield();
 }
 
 
 SEXP C_thread_join (SEXP _handle)
 {
+  RInterpreterHandle rInterpreter;
+  rInterpreter.release();
   extract_thread_handle(_handle)->join();
+  rInterpreter.claim();
   return R_NilValue;
 }
 
@@ -152,11 +172,12 @@ SEXP C_thread_printf (SEXP _message)
   
   const char * message = translateChar(STRING_ELT(_message, 0));
 
-  release_R_interpreter();
+  RInterpreterHandle rInterpreter;
+  rInterpreter.release();
   
   std::cout << message;
   
-  claim_R_interpreter();
+  rInterpreter.claim();
 }
 
 
@@ -174,7 +195,8 @@ SEXP C_thread_benchmark (SEXP _n, SEXP _timeout)
   int n = INTEGER_DATA(_n)[0];
   int timeout = INTEGER_DATA(_timeout)[0];
 
-  release_R_interpreter();
+  RInterpreterHandle rInterpreter;
+  rInterpreter.release();
 
   for (int i=0; i<n; ++i)
   {
@@ -187,7 +209,7 @@ SEXP C_thread_benchmark (SEXP _n, SEXP _timeout)
     std::this_thread::sleep_for(ms);
   }
 
-  claim_R_interpreter();
+  rInterpreter.claim();
   
   return R_NilValue;
 }

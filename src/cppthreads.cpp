@@ -1,63 +1,36 @@
 #include <thread>
-#include <mutex>
-#include <condition_variable>
 
 #include "cppthreads.h"
-
-
-//#include <Defn.h>
-extern uintptr_t R_CStackStart;
-
-
-std::mutex & interpreter_mutex () {
-  static std::mutex mutex;
-  return mutex;
-}
-
-std::condition_variable & interpreter_condition () {
-  static std::condition_variable condition;
-  return condition;
-}
-
-
-// Assumption: mutex is unlocked
-void claim_R_interpreter (uintptr_t _stack)
-{
-  R_CStackStart = (uintptr_t)_stack;
-  interpreter_mutex().lock();
-}
+#include "rinterpreter.h"
 
 
 
-// Assumption: mutex is locked
-void release_R_interpreter ()
-{
-  interpreter_condition().notify_all();
-  interpreter_mutex().unlock();
-}
-
-
-// Assumption: mutex is locked
-void yield_R_interpreter ()
-{
-  std::unique_lock<std::mutex> lock(interpreter_mutex(), std::adopt_lock);
-  interpreter_condition().notify_all();
-  interpreter_condition().wait(lock);
-}
-
-
-// http://pabercrombie.com/wordpress/2014/05/how-to-call-an-r-function-from-c/
+/*
+ * http://pabercrombie.com/wordpress/2014/05/how-to-call-an-r-function-from-c/
+ *
+ * R_tryEval evaluates the call via R_ToplevelContext; this in turn
+ * (according to main/context.c) will not be left by a long jump.
+ * 
+ * R_ToplevelExec - call fun(data) within a top level context to
+ * insure that this functin cannot be left by a LONGJMP.  R errors in
+ * the call to fun will result in a jump to top level. The return
+ * value is TRUE if fun returns normally, FALSE if it results in a
+ * jump to top level.
+ */
 void thread_runner (SEXP _fun, SEXP _data, SEXP _env)
 {
-  // pass the address of the top of this thread's stack 
-  claim_R_interpreter();
+  // pass the address of the top of this thread's stack
+  RInterpreterHandle rInterpreter;
+  rInterpreter.claim();
   
-  SEXP val;
+  SEXP val, call;
   int errorOccurred;
   
-  PROTECT(val = R_tryEval(_fun, _env, &errorOccurred));
   
-  if (!errorOccurred) {
+  PROTECT(call = lang2(_fun, _data));
+  PROTECT(val = R_tryEval(call, _env, &errorOccurred));
+  
+  if (errorOccurred) {
     // TODO store error info in thread's _env
     fprintf(stderr, "An error occurred when calling `fun`\n");
     fflush(stderr);
@@ -65,7 +38,7 @@ void thread_runner (SEXP _fun, SEXP _data, SEXP _env)
     // TODO store val in thread's _env
   }
   
-  UNPROTECT(1);
+  UNPROTECT(2);
   
-  release_R_interpreter();
+  rInterpreter.release();
 }

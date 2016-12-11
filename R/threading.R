@@ -49,7 +49,7 @@ thread_join <- function (handle)
 #' @export
 thread_yield <- function ()
 {
-  .Call("thread_yield")
+  .Call("C_thread_yield")
 }
 
 
