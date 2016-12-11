@@ -9,16 +9,22 @@
 extern uintptr_t R_CStackStart;
 
 
+std::mutex & interpreter_mutex () {
+  static std::mutex mutex;
+  return mutex;
+}
 
-static std::mutex              interpreter_mutex;
-static std::condition_variable interpreter_condition;
+std::condition_variable & interpreter_condition () {
+  static std::condition_variable condition;
+  return condition;
+}
 
 
 // Assumption: mutex is unlocked
 void claim_R_interpreter (uintptr_t _stack)
 {
   R_CStackStart = (uintptr_t)_stack;
-  interpreter_mutex.lock();
+  interpreter_mutex().lock();
 }
 
 
@@ -26,17 +32,17 @@ void claim_R_interpreter (uintptr_t _stack)
 // Assumption: mutex is locked
 void release_R_interpreter ()
 {
-  interpreter_condition.notify_all();
-  interpreter_mutex.unlock();
+  interpreter_condition().notify_all();
+  interpreter_mutex().unlock();
 }
 
 
 // Assumption: mutex is locked
 void yield_R_interpreter ()
 {
-  std::unique_lock<std::mutex> lock(interpreter_mutex, std::adopt_lock);
-  interpreter_condition.notify_all();
-  interpreter_condition.wait(lock);
+  std::unique_lock<std::mutex> lock(interpreter_mutex(), std::adopt_lock);
+  interpreter_condition().notify_all();
+  interpreter_condition().wait(lock);
 }
 
 
@@ -53,7 +59,7 @@ void thread_runner (SEXP _fun, SEXP _data, SEXP _env)
   
   if (!errorOccurred) {
     // TODO store error info in thread's _env
-    fprintf(stderr, "An error occurred when calling foo\n");
+    fprintf(stderr, "An error occurred when calling `fun`\n");
     fflush(stderr);
   } else {
     // TODO store val in thread's _env

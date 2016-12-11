@@ -41,6 +41,22 @@
 #include <sstream>
 #include <iostream>
 
+
+__attribute__((constructor))
+static void initialize_threading ()
+{
+  claim_R_interpreter();
+}
+
+__attribute__((destructor))
+static void teardown_threading ()
+{
+  release_R_interpreter();
+}
+
+
+
+
 static void C_thread_finalizer(SEXP ptr);
 
 
@@ -56,6 +72,7 @@ SEXP C_create_new_thread (SEXP _fun, SEXP _data, SEXP _env)
   SEXP ans, ptr;
   
   void * handle_ptr = Calloc(1, std::thread);
+  
   std::thread * handle = new (handle_ptr) std::thread(thread_runner, _fun, _data, _env);
   
   PROTECT(ptr = R_MakeExternalPtr(handle, install("thread_handle"), R_NilValue));

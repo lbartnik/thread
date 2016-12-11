@@ -5,9 +5,20 @@
 #include <R.h>
 #include <Rinternals.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
 
-extern "C" SEXP C_create_new_thread (SEXP _fun, SEXP _data, SEXP _env);
-extern "C" SEXP C_thread_yield ();
-extern "C" SEXP C_thread_benchmark (SEXP _n, SEXP _timeout);
+  
+SEXP C_create_new_thread (SEXP _fun, SEXP _data, SEXP _env);
+SEXP C_thread_yield ();
+SEXP C_thread_benchmark (SEXP _n, SEXP _timeout);
+SEXP C_thread_join (SEXP _handle);
+
+
+#ifdef __cplusplus
+} // extern "C"
+#endif
+
 
 #endif /* THREADING_H_GUARD */

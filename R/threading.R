@@ -46,6 +46,12 @@ thread_join <- function (handle)
   .Call("C_thread_join", handle)
 }
 
+#' @export
+thread_yield <- function ()
+{
+  .Call("thread_yield")
+}
+
 
 #' @export
 thread_benchmark <- function (n, timeout)

@@ -1,4 +1,4 @@
-#' @example
+#' @export
 run_example <- function ()
 {
   thread_runner <- function (data)
@@ -8,13 +8,15 @@ run_example <- function ()
 
   message("starting the first thread")
   thread1 <- new_thread(thread_runner, list())
-  str(threads)
+  ls(threads)
 
   message("starting the second thread")
   thread2 <- new_thread(thread_runner, list())
-  str(threads)
+  ls(threads)
 
   thread_join(thread1)
   thread_join(thread2)
+  
+  thread_yield()
 }
 
