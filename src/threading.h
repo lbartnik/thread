@@ -15,6 +15,9 @@ SEXP C_thread_yield ();
 SEXP C_thread_benchmark (SEXP _n, SEXP _timeout);
 SEXP C_thread_join (SEXP _handle);
 
+SEXP C_thread_print (SEXP _message);
+SEXP C_thread_sleep (SEXP _timeout);
+
 
 #ifdef __cplusplus
 } // extern "C"

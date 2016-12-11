@@ -54,6 +54,20 @@ thread_yield <- function ()
 
 
 #' @export
+thread_print <- function (message)
+{
+  .Call("C_thread_print", as.character(message))
+}
+
+#' @export
+thread_sleep <- function (timeout)
+{
+  .Call("C_thread_sleep", as.integer(timeout))
+}
+
+
+
+#' @export
 thread_benchmark <- function (n, timeout)
 {
   .Call("C_thread_benchmark", as.integer(n), as.integer(timeout))

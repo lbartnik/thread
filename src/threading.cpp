@@ -164,7 +164,7 @@ SEXP C_thread_join (SEXP _handle)
 
 // --- testing utilities -----------------------------------------------
 
-SEXP C_thread_printf (SEXP _message)
+SEXP C_thread_print (SEXP _message)
 {
   if (!is_single_string(_message)) {
     Rf_error("`message` must be a single character value");
@@ -176,6 +176,25 @@ SEXP C_thread_printf (SEXP _message)
   rInterpreter.release();
   
   std::cout << message;
+  std::cout.flush();
+  
+  rInterpreter.claim();
+}
+
+
+SEXP C_thread_sleep (SEXP _timeout)
+{
+  if (!is_single_integer(_timeout)) {
+    Rf_error("`timeout` must be a single integer value");
+  }
+  
+  int timeout = INTEGER_DATA(_timeout)[0];
+
+  RInterpreterHandle rInterpreter;
+  rInterpreter.release();
+  
+  std::chrono::milliseconds ms{timeout};
+  std::this_thread::sleep_for(ms);
   
   rInterpreter.claim();
 }
