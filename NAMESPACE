@@ -2,6 +2,7 @@
 
 export(new_thread)
 export(thread_benchmark)
+export(thread_join)
 export(try_evaluate)
 importFrom(Rcpp,Rcpp.plugin.maker)
 importFrom(Rcpp,cppFunction)

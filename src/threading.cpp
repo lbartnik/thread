@@ -92,11 +92,40 @@ static void C_thread_finalizer (SEXP ptr)
 }
 
 
+std::thread * extract_thread_handle (SEXP _handle)
+{
+  SEXP ptr = getAttrib(_handle, install("handle_ptr"));
+  if (ptr == R_NilValue) {
+    Rf_error("`handle_ptr` attribute not found");
+  }
+  
+  void * c_ptr = R_ExternalPtrAddr(ptr);
+  if (!c_ptr) {
+    Rf_error("external C pointer is NULL");
+  }
+  
+  return (std::thread*)c_ptr;
+}
+
+
+
+
+
 SEXP C_thread_yield ()
 {
   yield_R_interpreter();
 }
 
+
+SEXP C_thread_join (SEXP _handle)
+{
+  extract_thread_handle(_handle)->join();
+  return R_NilValue;
+}
+
+
+
+// --- testing utilities -----------------------------------------------
 
 SEXP C_thread_printf (SEXP _message)
 {

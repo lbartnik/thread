@@ -23,12 +23,13 @@ new_thread <- function (fun, data)
   meta_env$thread_env   <- new.env(parent = meta_env)
 
   # this creates a new thread in C
-  id <- create_new_thread(fun, data, meta_env$thread_env)
+  handle <- create_new_thread(fun, data, meta_env$thread_env)
+  meta_env$handle <- handle
 
   # store this thread's meta-data under its ID
-  assign(paste0('thread', id), meta_env, envir = threads)
+  assign(paste0('thread_', handle), meta_env, envir = threads)
   
-  id
+  handle
 }
 
 
@@ -36,6 +37,13 @@ create_new_thread <- function (fun, data, env)
 {
   stopifnot(is.function(fun), is.environment(env))
   .Call("C_create_new_thread", fun, data, env)
+}
+
+
+#' @export
+thread_join <- function (handle)
+{
+  .Call("C_thread_join", handle)
 }
 
 
