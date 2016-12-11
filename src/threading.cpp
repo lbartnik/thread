@@ -148,6 +148,7 @@ SEXP C_thread_yield ()
 {
   RInterpreterHandle rInterpreter;
   rInterpreter.yield();
+  return R_NilValue;
 }
 
 
@@ -179,6 +180,8 @@ SEXP C_thread_print (SEXP _message)
   std::cout.flush();
   
   rInterpreter.claim();
+  
+  return R_NilValue;
 }
 
 
@@ -197,8 +200,52 @@ SEXP C_thread_sleep (SEXP _timeout)
   std::this_thread::sleep_for(ms);
   
   rInterpreter.claim();
+  
+  return R_NilValue;
 }
 
+
+SEXP C_thread_sum (SEXP _array, SEXP _from, SEXP _to)
+{
+  if (!isReal(_array)) {
+    Rf_error("`array` must be numeric");
+  }
+  if (!is_single_integer(_from)) {
+    Rf_error("`from` must be a single integer");
+  }
+  if (!is_single_integer(_to)) {
+    Rf_error("`to` must be a single integer");
+  }
+  
+  int from = INTEGER_DATA(_from)[0];
+  int to = INTEGER_DATA(_to)[0];
+  
+  if (from < 0 || from >= LENGTH(_array) || to < 0 || to >= LENGTH(_array) || to < from) {
+    Rf_error("`from` and `to` must be within range of `array`");
+  }
+  
+  SEXP ans;
+  PROTECT(ans = allocVector(REALSXP, 1));
+  PROTECT(_array);
+  
+  double sum=0;
+  double * array = DOUBLE_DATA(_array);
+  double * ptr = array + from;
+  
+  RInterpreterHandle rInterpreter;
+  rInterpreter.release();
+  
+  for (; from<=to; ++from, ++ptr) {
+    sum += *ptr;
+  }
+
+  rInterpreter.claim();
+
+  DOUBLE_DATA(ans)[0] = sum;
+  UNPROTECT(2);
+
+  return ans;
+}
 
 
 

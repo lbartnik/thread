@@ -16,7 +16,43 @@ Missing:
 * run an arbitrary C function outside of the Global Interpreter Lock
 * synchronize memory allocation
 
-## Example
+
+## Example: Computing a Sum
+
+Here we verify low-level performance by computing the same sum in one
+thread (the standard `sum()` function) or in `4` threads via `thread_sum()`.
+We need to use a specialized function because `sum()` allocates memory
+which needs to be synchronized (but `thread` cannot do that yet).
+
+```r
+library(thread)
+run_c_computing_example()
+```
+
+Sum is the same, but time when using threads much shorter. 
+
+```
+generating data
+starting threads
+main: going to join all threads
+thread 1 computing from 0 to 249999999 
+thread 2 computing from 2.5e+08 to 499999999 
+thread 3 computing from 5e+08 to 749999999 
+thread 4 computing from 7.5e+08 to 999999999 
+main: going to claim results
+[1] 5e+17
+[1] 5e+17
+   user  system elapsed 
+  1.512   0.000   0.394 
+   user  system elapsed 
+  0.992   0.000   0.992 
+```
+
+
+
+## Example: Printing
+
+Here we present how one can implement IO threads.
 
 ```r
 library(thread)

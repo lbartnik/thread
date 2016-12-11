@@ -35,7 +35,7 @@ void thread_runner (SEXP _fun, SEXP _data, SEXP _env)
     fprintf(stderr, "An error occurred when calling `fun`\n");
     fflush(stderr);
   } else {
-    // TODO store val in thread's _env
+    defineVar(install("result"), val, _env);
   }
   
   UNPROTECT(2);

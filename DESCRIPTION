@@ -7,8 +7,6 @@ Author: Lukasz A. Bartnik <l.bartnik@gmail.com>
 Maintainer: Lukasz A. Bartnik <l.bartnik@gmail.com>
 Description: Attempt at threads in R.
 License: MIT + file LICENSE
-Imports:
-    Rcpp (>= 0.12.8)
 Suggests:
     testthat,
     knitr,
@@ -16,4 +14,3 @@ Suggests:
 VignetteBuilder: knitr
 RoxygenNote: 5.0.1
 SystemRequirements: C++11
-LinkingTo: Rcpp

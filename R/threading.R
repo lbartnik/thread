@@ -21,15 +21,15 @@ new_thread <- function (fun, data)
   meta_env$main_routine <- fun
   meta_env$main_data    <- data
   meta_env$thread_env   <- new.env(parent = meta_env)
+  meta_env$thread_env$result <- 0
 
   # this creates a new thread in C
-  handle <- create_new_thread(fun, data, meta_env$thread_env)
-  meta_env$handle <- handle
+  meta_env$handle <- create_new_thread(fun, data, meta_env$thread_env)
 
   # store this thread's meta-data under its ID
-  assign(paste0('thread_', handle), meta_env, envir = threads)
+  assign(paste0('thread_', meta_env$handle), meta_env, envir = threads)
   
-  handle
+  meta_env$handle
 }
 
 
@@ -45,6 +45,14 @@ thread_join <- function (handle)
 {
   .Call("C_thread_join", handle)
 }
+
+
+#' @export
+thread_result <- function (handle)
+{
+  get(paste0('thread_', handle), envir = threads, inherits = FALSE)$thread_env$result
+}
+
 
 #' @export
 thread_yield <- function ()
@@ -65,6 +73,12 @@ thread_sleep <- function (timeout)
   .Call("C_thread_sleep", as.integer(timeout))
 }
 
+
+#' @export
+thread_sum <- function (array, from, to)
+{
+  .Call("C_thread_sum", array, as.integer(from), as.integer(to))
+}
 
 
 #' @export
