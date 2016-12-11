@@ -25,18 +25,24 @@ run_r_printing_example <- function ()
 {
   thread_runner <- function (data)
   {
+    thread_print(paste("thread", data, "starting\n"))
+
     for (i in 1:10) {
-      thread_print(paste0("thread ", data, " iteration ", i, " sleeping\n"))
-      thread_sleep(1000)
+      timeout <- as.integer(abs(rnorm(1, 500, 1000)))
+      thread_print(paste("thread", data, "iteration", i, "sleeping for",
+                         timeout, "\n"))
+      thread_sleep(timeout)
     }
+    
+    thread_print(paste("thread", data, "exiting\n"))
   }
   
   message("starting the first thread")
-  thread1 <- new_thread(thread_runner, list())
+  thread1 <- new_thread(thread_runner, 1)
   print(ls(threads))
   
   message("starting the second thread")
-  thread2 <- new_thread(thread_runner, list())
+  thread2 <- new_thread(thread_runner, 2)
   print(ls(threads))
   
   message("going to join() both threads")
