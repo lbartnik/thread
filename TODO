@@ -1,12 +1,13 @@
+
+TODO:
+
 * see how exactly contexts are defined in main/context.c
   maybe they should be traced as well in order to correctly catch
   exceptions in threads
 
-* add memory allocation callback
-
-* add facility to run C functions in a GIL-free context; this
-  requires synchronized allocation and probably additional logic
-  to handle exceptions and jumps with thread's stack
+* idenfity memory-related callbacks:
+  - add memory allocation callback
+  - add garbage-colletor callback
 
 * where are warnings stored? what other data needs to be accounted
   for per thread?
@@ -14,3 +15,12 @@
 * most probably also PROTECT() and all kinds of UNPROTECT() need to
   be synchronized; what's the code behind them? how much bookkeeping
   is required?
+
+
+
+Done:
+
++ add facility to run C functions in a GIL-free context; this
+  requires synchronized allocation and probably additional logic
+  to handle exceptions and jumps with thread's stack
+

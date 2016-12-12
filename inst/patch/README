@@ -1,0 +1,2 @@
+This patch exposes allocVector3 as a function pointer. Thus, calls that
+allocate memory can be intercepted.
