@@ -5,6 +5,8 @@
 #include <condition_variable>
 #include <mutex>
 #include <thread>
+#include <map>
+
 
 
 //#include <Defn.h>
@@ -12,29 +14,36 @@ extern uintptr_t R_CStackStart;
 extern int R_PPStackTop;
 
 
-class RInterpreterHandle {
-public:
+struct interpreter_context {
   
-  RInterpreterHandle ()
-    : my_stack_top(R_PPStackTop)
+  interpreter_context (uintptr_t _stack_start, int _pp_stack_top)
+    : stack_start(_stack_start), pp_stack_top(_pp_stack_top)
   {}
   
-  // Assumption: mutex is unlocked
-  void claim (uintptr_t _stack = (uintptr_t)-1)
-  {
-    R_CStackStart = (uintptr_t)_stack;
-    interpreter_mutex().lock();
-    
-    if (my_stack_top) {
-      R_PPStackTop = my_stack_top;
-    }
-  }
+  uintptr_t stack_start;
+  int pp_stack_top;
+};
+
+
+class RInterpreterHandle {
   
+  typedef std::map<std::thread::id, interpreter_context> contexts_type;
+  
+public:
+  
+  RInterpreterHandle () {}
+  
+  void init (uintptr_t _stack_start);
+
+  interpreter_context & get_this_context ();
+
+  // Assumption: mutex is unlocked
+  void claim ();
   
   // Assumption: mutex is locked
   void release (bool _notify = true)
   {
-    my_stack_top = R_PPStackTop;
+    get_this_context().pp_stack_top = R_PPStackTop;
     interpreter_mutex().unlock();
     
     // won't notify when called from library destructor
@@ -55,13 +64,13 @@ public:
   
   
 private:
-  
-  int my_stack_top;
-  
+
   std::recursive_mutex & interpreter_mutex ();
 
   std::condition_variable & interpreter_condition ();
   
+  contexts_type & interpreter_contexts ();
+
 };
 
 

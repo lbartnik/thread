@@ -20,7 +20,9 @@
 void thread_runner (SEXP _fun, SEXP _data, SEXP _env)
 {
   // pass the address of the top of this thread's stack
+  int base;
   RInterpreterHandle rInterpreter;
+  rInterpreter.init((uintptr_t)&base);
   rInterpreter.claim();
   
   SEXP val, call;

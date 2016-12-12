@@ -47,6 +47,7 @@ __attribute__((constructor))
 static void initialize_threading ()
 {
   RInterpreterHandle rInterpreter;
+  rInterpreter.init(R_CStackStart);
   rInterpreter.claim();
 }
 
