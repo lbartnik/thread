@@ -49,10 +49,18 @@ void RInterpreterHandle::init (uintptr_t _stack_start)
 void RInterpreterHandle::claim ()
 {
   interpreter_mutex().lock();
-    
-  R_PPStackTop  = get_this_context().pp_stack_top;
-  R_CStackStart = get_this_context().stack_start;
+  get_this_context().count += 1;
 
+  // if re-entering in the same thread, refresh settings
+  if (get_this_context().count > 1) {
+    get_this_context().pp_stack_top = R_PPStackTop;
+  }
+  // if entering from another thread, restore settings
+  else {  
+    R_PPStackTop  = get_this_context().pp_stack_top;
+    R_CStackStart = get_this_context().stack_start;
+  }
+  
   if (DEBUG_THREADS) {
     std::cerr << "claiming interpreter context for thread "
               << std::this_thread::get_id()
@@ -60,3 +68,16 @@ void RInterpreterHandle::claim ()
   }
 }
 
+
+void RInterpreterHandle::release (bool _notify)
+{
+  get_this_context().count -= 1;
+  get_this_context().pp_stack_top = R_PPStackTop;
+  interpreter_mutex().unlock();
+  
+  // won't notify when called from library destructor
+  // TODO what if there are threads that are still running?
+  if (_notify) {
+    interpreter_condition().notify_all();
+  }
+}
