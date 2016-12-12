@@ -2,6 +2,9 @@
 #include <Rinternals.h>
 #include <R_ext/Rdynload.h>
 
+#include "rinterpreter.h"
+
+
 
 // from #include <Rdynpriv.h>
 // implemented after memory.c
@@ -61,13 +64,20 @@ extern "C" SEXP C_thread_run_native (SEXP _address, SEXP _args)
     call.no_args++;
   }
   
+  // this is run outside of R interpreter; drop Global Interpreter Lock
+  RInterpreterHandle rInterpreter;
+  rInterpreter.release();
+  
   // call the function
   Rboolean rc = R_ToplevelExec(execute_native, (void*)&call);
   if (rc == FALSE) {
     Rf_error("error when calling native function");
   }
-  
+
   UNPROTECT(1);
+  
+  rInterpreter.claim();
+  
   return call.ret;
 }
 
@@ -101,6 +111,10 @@ void execute_native (void * _data)
 }
 
 
+/*
+ * Used in tests to verify whether C_thread_native_call() works
+ * properly.
+ */
 extern "C" SEXP C_sample_call (SEXP arg)
 {
   return arg;

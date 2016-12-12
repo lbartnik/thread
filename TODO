@@ -10,3 +10,7 @@
 
 * where are warnings stored? what other data needs to be accounted
   for per thread?
+
+* most probably also PROTECT() and all kinds of UNPROTECT() need to
+  be synchronized; what's the code behind them? how much bookkeeping
+  is required?
