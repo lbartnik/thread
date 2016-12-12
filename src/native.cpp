@@ -61,7 +61,6 @@ extern "C" SEXP C_thread_run_native (SEXP _address, SEXP _args)
   SEXP pargs;
   for(call.no_args = 0, pargs = _args ; call.no_args < len; call.no_args++) {
     call.args[call.no_args] = VECTOR_ELT(pargs, call.no_args);
-    call.no_args++;
   }
   
   // this is run outside of R interpreter; drop Global Interpreter Lock

@@ -30,9 +30,15 @@ Elf64_Sym  gbl_sym_table[1] __attribute__((weak));
 
 // --- using a patched version of R ------------------------------------
 
+#include <thread>
+#include <iostream>
+
 #include "rinterpreter.h"
 #include "is_something.h"
+
 #include <Rdefines.h>
+
+
 
 #ifdef ALLOC_VECTOR_3_IS_A_CALLBACK
 
@@ -107,6 +113,10 @@ extern "C" SEXP C_memory_allocation_test (SEXP _n, SEXP _size, SEXP _timeout)
   SEXP obj;
   for (int i=0; i<n; ++i) {
     obj = allocVector(INTSXP, size);
+    
+    std::cout << "thread " << std::this_thread::get_id()
+              << " allocated " << size << " integers, sleeping"
+              << std::endl;
 
     std::chrono::milliseconds ms{timeout};
     std::this_thread::sleep_for(ms);
