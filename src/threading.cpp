@@ -163,7 +163,6 @@ SEXP C_thread_join (SEXP _handle)
 }
 
 
-
 // --- testing utilities -----------------------------------------------
 
 SEXP C_thread_print (SEXP _message)
