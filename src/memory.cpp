@@ -31,6 +31,8 @@ Elf64_Sym  gbl_sym_table[1] __attribute__((weak));
 // --- using a patched version of R ------------------------------------
 
 #include "rinterpreter.h"
+#include "is_something.h"
+#include <Rdefines.h>
 
 #ifdef ALLOC_VECTOR_3_IS_A_CALLBACK
 
@@ -75,6 +77,46 @@ void reset_alloc_callback ()
 }
 
 
+extern "C" SEXP C_is_memory_synchronized ()
+{
+  SEXP ans;
+  PROTECT(ans = allocVector(LGLSXP, 1));
+  LOGICAL_DATA(ans)[0] = 1;
+  UNPROTECT(1);
+  return ans;
+}
+
+
+extern "C" SEXP C_memory_allocation_test (SEXP _n, SEXP _size, SEXP _timeout)
+{
+  if (!is_single_integer(_n)) {
+    Rf_error("`n` must be a single integer value");
+  }
+  if (!is_single_integer(_size)) {
+    Rf_error("`size` must be a single integer value");
+  }
+  if (!is_single_integer(_timeout)) {
+    Rf_error("`timeout` must be a single integer value");
+  }
+  
+  int n       = INTEGER_DATA(_n)[0];
+  int size    = INTEGER_DATA(_size)[0];
+  int timeout = INTEGER_DATA(_timeout)[0];
+  
+  
+  SEXP obj;
+  for (int i=0; i<n; ++i) {
+    obj = allocVector(INTSXP, size);
+
+    std::chrono::milliseconds ms{timeout};
+    std::this_thread::sleep_for(ms);
+  }
+
+  return R_NilValue;
+}
+
+
+
 #else /* ALLOC_VECTOR_3_IS_A_CALLBACK */
 
 // noop
@@ -87,6 +129,17 @@ void set_alloc_callback ()
 void reset_alloc_callback ()
 {
 }
+
+
+extern "C" SEXP C_is_memory_synchronized ()
+{
+  SEXP ans;
+  PROTECT(ans = allocVector(LGLSXP, 1));
+  LOGICAL_DATA(ans)[0] = 0;
+  UNPROTECT(1);
+  return ans;
+}
+
 
 #endif /* ALLOC_VECTOR_3_IS_A_CALLBACK */
 
