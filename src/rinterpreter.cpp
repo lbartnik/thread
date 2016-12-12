@@ -39,7 +39,7 @@ void RInterpreterHandle::init (uintptr_t _stack_start)
               << std::this_thread::get_id()
               << "; stack_start=" << _stack_start << std::endl;
   }
-  
+
   std::lock_guard<std::recursive_mutex> lock(interpreter_mutex());
   interpreter_contexts().insert(make_pair(std::this_thread::get_id(),
                                 interpreter_context(_stack_start, R_PPStackTop)));
