@@ -37,6 +37,7 @@
 #include "threading.h"
 #include "is_something.h"
 #include "rinterpreter.h"
+#include "memory.h"
 
 #include <thread>
 #include <sstream>
@@ -49,11 +50,15 @@ static void initialize_threading ()
   RInterpreterHandle rInterpreter;
   rInterpreter.init(R_CStackStart);
   rInterpreter.claim();
+
+  set_alloc_callback();
 }
 
 __attribute__((destructor))
 static void teardown_threading ()
 {
+  reset_alloc_callback();
+  
   // TODO make sure we never exit before all threads are joined()
 
   // TODO is it even needed to release synchronization variables?

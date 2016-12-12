@@ -20,8 +20,74 @@
 
 #include <cstdio>
 #include <cstring>
+#include <iostream>
 #include <Rinternals.h>
 
 #include <elf.h>
 
 Elf64_Sym  gbl_sym_table[1] __attribute__((weak));
+
+
+// --- using a patched version of R ------------------------------------
+
+#include "rinterpreter.h"
+
+#ifdef ALLOC_VECTOR_3_IS_A_CALLBACK
+
+extern "C" {
+
+  typedef SEXP (allocVector3_t)(SEXPTYPE type, R_xlen_t length, R_allocator_t *allocator);
+  
+  allocVector3_t Rf_allocVector3_impl;
+  allocVector3_t allocVector3_synchronized;
+  
+} // extern "C"
+
+
+
+SEXP allocVector3_synchronized (SEXPTYPE _type, R_xlen_t _len, R_allocator_t* _alloc)
+{
+  RInterpreterHandle rInterpreter;
+  rInterpreter.claim();
+  
+  SEXP ret = Rf_allocVector3_impl(_type, _len, _alloc);
+  
+  rInterpreter.release();
+  
+  return ret;
+}
+
+
+static allocVector3_t * allocVector3_orig;
+
+
+void set_alloc_callback ()
+{
+  std::cout << "setting a callback for allocVector3\n";
+
+  allocVector3_orig = Rf_allocVector3;
+  Rf_allocVector3 = allocVector3_synchronized;
+}
+
+void reset_alloc_callback ()
+{
+  Rf_allocVector3 = allocVector3_orig;
+}
+
+
+#else /* ALLOC_VECTOR_3_IS_A_CALLBACK */
+
+// noop
+void set_alloc_callback ()
+{
+  std::cout << "memory allocation via allocVector3 is not synchronized\n";
+}
+
+// noop
+void reset_alloc_callback ()
+{
+}
+
+#endif /* ALLOC_VECTOR_3_IS_A_CALLBACK */
+
+

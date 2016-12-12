@@ -1,7 +1,8 @@
+Only in R-3.3.2-patched: build
 diff -ru R-3.3.2/src/include/Rinternals.h R-3.3.2-patched/src/include/Rinternals.h
 --- R-3.3.2/src/include/Rinternals.h	2016-10-04 02:14:57.000000000 -0700
-+++ R-3.3.2-patched/src/include/Rinternals.h	2016-12-11 22:09:58.922907328 -0800
-@@ -776,7 +776,16 @@
++++ R-3.3.2-patched/src/include/Rinternals.h	2016-12-11 22:48:50.790384685 -0800
+@@ -776,7 +776,18 @@
  SEXP Rf_allocList(int);
  SEXP Rf_allocS4Object(void);
  SEXP Rf_allocSExp(SEXPTYPE);
@@ -15,6 +16,8 @@ diff -ru R-3.3.2/src/include/Rinternals.h R-3.3.2-patched/src/include/Rinternals
 +
 +SEXP Rf_allocVector3_impl(SEXPTYPE, R_xlen_t, R_allocator_t*);
 +extern SEXP (*Rf_allocVector3)(SEXPTYPE, R_xlen_t, R_allocator_t *) INI_as(Rf_allocVector3_impl);
++
++#define ALLOC_VECTOR_3_IS_A_CALLBACK
 +
  R_xlen_t Rf_any_duplicated(SEXP x, Rboolean from_last);
  R_xlen_t Rf_any_duplicated3(SEXP x, SEXP incomp, Rboolean from_last);

@@ -6,4 +6,5 @@
 
 void thread_runner (SEXP _fun, SEXP _data, SEXP _env);
 
+
 #endif /* CPPTHREAD_H_GUARD */
