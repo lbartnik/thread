@@ -1,0 +1,12 @@
+* see how exactly contexts are defined in main/context.c
+  maybe they should be traced as well in order to correctly catch
+  exceptions in threads
+
+* add memory allocation callback
+
+* add facility to run C functions in a GIL-free context; this
+  requires synchronized allocation and probably additional logic
+  to handle exceptions and jumps with thread's stack
+
+* where are warnings stored? what other data needs to be accounted
+  for per thread?
