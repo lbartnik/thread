@@ -38,7 +38,6 @@ void thread_runner (SEXP _fun, SEXP _data, SEXP _env)
   int errorOccurred;
   RCNTXT thiscontext;
   
-  R_PPStack = PPStack;
   Rf_begincontext(&thiscontext, CTXT_TOPLEVEL, R_NilValue, R_GlobalEnv,
                   R_BaseEnv, R_NilValue, R_NilValue);
   
