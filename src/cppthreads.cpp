@@ -1,4 +1,6 @@
 #include <thread>
+#include <cstdlib>
+#include <iostream>
 
 #include "cppthreads.h"
 #include "rinterpreter.h"
@@ -21,15 +23,22 @@
 void thread_runner (SEXP _fun, SEXP _data, SEXP _env)
 {
   // pass the address of the top of this thread's stack
-  int base;
+  int base, RealPPStackSize = R_PPStackSize + PP_REDZONE_SIZE;
+  SEXP * PPStack = (SEXP *) malloc(RealPPStackSize * sizeof(SEXP));
+  if (!PPStack) {
+    std::cerr << "could not allocate PPStack" << std::endl;
+    return;
+  }
+
   RInterpreterHandle rInterpreter;
-  rInterpreter.init((uintptr_t)&base, R_GlobalContext);
+  rInterpreter.init((uintptr_t)&base, R_GlobalContext, PPStack);
   rInterpreter.claim();
   
   SEXP val, call;
   int errorOccurred;
   RCNTXT thiscontext;
   
+  R_PPStack = PPStack;
   Rf_begincontext(&thiscontext, CTXT_TOPLEVEL, R_NilValue, R_GlobalEnv,
                   R_BaseEnv, R_NilValue, R_NilValue);
   

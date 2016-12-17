@@ -32,7 +32,7 @@ interpreter_context & RInterpreterHandle::get_this_context ()
 }
 
 
-void RInterpreterHandle::init (uintptr_t _stack_start, RCNTXT * _global_context)
+void RInterpreterHandle::init (uintptr_t _stack_start, RCNTXT * _global_context, SEXP * _pp_stack)
 {
   if (DEBUG_THREADS) {
     std::cerr << "initializing interpreter context for thread "
@@ -40,7 +40,7 @@ void RInterpreterHandle::init (uintptr_t _stack_start, RCNTXT * _global_context)
               << "; stack_start=" << _stack_start << std::endl;
   }
 
-  interpreter_context context(_stack_start, _global_context);
+  interpreter_context context(_stack_start, _global_context, _pp_stack);
   
   std::lock_guard<std::recursive_mutex> lock(interpreter_mutex());
   interpreter_contexts().insert(make_pair(std::this_thread::get_id(), context));
@@ -72,6 +72,7 @@ void RInterpreterHandle::claim ()
     R_PPStackTop  = get_this_context().pp_stack_top;
     R_CStackStart = get_this_context().stack_start;
     R_GlobalContext = get_this_context().global_context;
+    R_PPStack = get_this_context().pp_stack;
   }
   
   if (DEBUG_THREADS) {

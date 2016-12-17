@@ -15,14 +15,16 @@
 struct interpreter_context {
   
   interpreter_context (uintptr_t _stack_start,
-                       RCNTXT * _global_context = nullptr)
+                       RCNTXT * _global_context = nullptr,
+                       SEXP * _pp_stack = nullptr)
     : stack_start(_stack_start), pp_stack_top(R_PPStackTop),
-      count(0), global_context(_global_context)
+      count(0), global_context(_global_context), pp_stack(_pp_stack)
   {}
   
   uintptr_t stack_start;
   int pp_stack_top, count;
   RCNTXT * global_context;
+  SEXP * pp_stack;
 };
 
 
@@ -34,7 +36,7 @@ public:
   
   RInterpreterHandle () {}
   
-  void init (uintptr_t _stack_start, RCNTXT * _global_context);
+  void init (uintptr_t _stack_start, RCNTXT * _global_context, SEXP * _pp_stack);
 
   void destroy ();
   

@@ -112,6 +112,10 @@ BUI   0 0 0 0 0 0 0 1 = 64
 extern uintptr_t R_CStackStart;
 extern int R_PPStackTop;
 extern RCNTXT * R_GlobalContext;
+extern SEXP* R_PPStack;
+
+extern int R_PPStackSize;
+#define PP_REDZONE_SIZE 1000L
 
 
 void Rf_begincontext(RCNTXT*, int, SEXP, SEXP, SEXP, SEXP, SEXP);
