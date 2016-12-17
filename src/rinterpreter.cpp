@@ -32,7 +32,7 @@ interpreter_context & RInterpreterHandle::get_this_context ()
 }
 
 
-void RInterpreterHandle::init (uintptr_t _stack_start)
+void RInterpreterHandle::init (uintptr_t _stack_start, RCNTXT * _global_context)
 {
   if (DEBUG_THREADS) {
     std::cerr << "initializing interpreter context for thread "
@@ -40,9 +40,21 @@ void RInterpreterHandle::init (uintptr_t _stack_start)
               << "; stack_start=" << _stack_start << std::endl;
   }
 
+  interpreter_context context(_stack_start, _global_context);
+  
   std::lock_guard<std::recursive_mutex> lock(interpreter_mutex());
-  interpreter_contexts().insert(make_pair(std::this_thread::get_id(),
-                                interpreter_context(_stack_start, R_PPStackTop)));
+  interpreter_contexts().insert(make_pair(std::this_thread::get_id(), context));
+}
+
+
+void RInterpreterHandle::destroy ()
+{
+  std::lock_guard<std::recursive_mutex> lock(interpreter_mutex());
+ 
+  contexts_type::iterator i = interpreter_contexts().find(std::this_thread::get_id());
+  if (i != interpreter_contexts().end()) {
+    interpreter_contexts().erase(i);
+  }
 }
 
 
@@ -59,6 +71,7 @@ void RInterpreterHandle::claim ()
   else {  
     R_PPStackTop  = get_this_context().pp_stack_top;
     R_CStackStart = get_this_context().stack_start;
+    R_GlobalContext = get_this_context().global_context;
   }
   
   if (DEBUG_THREADS) {
@@ -73,6 +86,7 @@ void RInterpreterHandle::release (bool _notify)
 {
   get_this_context().count -= 1;
   get_this_context().pp_stack_top = R_PPStackTop;
+  get_this_context().global_context = R_GlobalContext;
   interpreter_mutex().unlock();
   
   // won't notify when called from library destructor

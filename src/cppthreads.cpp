@@ -3,6 +3,7 @@
 #include "cppthreads.h"
 #include "rinterpreter.h"
 
+#include "R/Defn.h"
 
 
 /*
@@ -22,15 +23,23 @@ void thread_runner (SEXP _fun, SEXP _data, SEXP _env)
   // pass the address of the top of this thread's stack
   int base;
   RInterpreterHandle rInterpreter;
-  rInterpreter.init((uintptr_t)&base);
+  rInterpreter.init((uintptr_t)&base, R_GlobalContext);
   rInterpreter.claim();
   
   SEXP val, call;
   int errorOccurred;
+  RCNTXT thiscontext;
   
+  Rf_begincontext(&thiscontext, CTXT_TOPLEVEL, R_NilValue, R_GlobalEnv,
+                  R_BaseEnv, R_NilValue, R_NilValue);
+  
+  // simulate top of the stack
+  R_GlobalContext->nextcontext = nullptr;
   
   PROTECT(call = lang2(_fun, _data));
   PROTECT(val = R_tryEval(call, _env, &errorOccurred));
+
+  Rf_endcontext(&thiscontext);
   
   if (errorOccurred) {
     // TODO store error info in thread's _env
@@ -43,4 +52,5 @@ void thread_runner (SEXP _fun, SEXP _data, SEXP _env)
   UNPROTECT(2);
   
   rInterpreter.release();
+  rInterpreter.destroy();
 }

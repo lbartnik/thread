@@ -33,22 +33,24 @@
  *    .                                           (the "new") environment
  */
 
+#include <thread>
+#include <sstream>
+#include <iostream>
+
+
 #include "cppthreads.h"
 #include "threading.h"
 #include "is_something.h"
 #include "rinterpreter.h"
 #include "memory.h"
 
-#include <thread>
-#include <sstream>
-#include <iostream>
 
 
 __attribute__((constructor))
 static void initialize_threading ()
 {
   RInterpreterHandle rInterpreter;
-  rInterpreter.init(R_CStackStart);
+  rInterpreter.init(R_CStackStart, R_GlobalContext);
   rInterpreter.claim();
 
   set_alloc_callback();
