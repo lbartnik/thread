@@ -3,37 +3,90 @@
 
 
 #include <condition_variable>
+#include <map>
+#include <memory>
 #include <mutex>
 #include <thread>
-#include <map>
 #include <vector>
 
 #include "Rinternals.h"
 #include "R/Defn.h"
 #undef length
 
-#include "threads.h"
+#include "threading.h"
 
 
-class RInterpreterHandle {
+
+class interpreter_context
+{
+public:
+
+  typedef std::shared_ptr<interpreter_context> ptr;
+
+
+private:
+
+  typedef std::map<std::thread::id, interpreter_context::ptr> contexts_type;
+
+
+  interpreter_context(const interpreter_context &) {}
+
+  interpreter_context (uintptr_t _stack_start,
+                       SEXP * _pp_stack_start,
+                       int _stack_top,
+                       int _stack_size,
+                       RCNTXT * _global_context);
+
+  interpreter_context (uintptr_t _stack_start,
+                       RCNTXT * _global_context = nullptr);
+
+  static contexts_type & contexts ();
+
+  static std::recursive_mutex & container_mutex ();
+
+  std::vector<SEXP> stack_data;
+
+public:
+
+  uintptr_t stack_start;
+  int count;
+  RCNTXT * global_context;
+  chained_stack link;
+
+  // main thread, called when DLL is loaded
+  static void create();
+  
+  // threads created within the package
+  static void create(uintptr_t _stack_base);
+
+  static interpreter_context & get_this_context ();
+
+  static void destroy ();  
+};
+
+
+
+
+
+class RInterpreterLock {
   
   
 public:
   
-  RInterpreterHandle () {}
+  RInterpreterLock () {}
   
   // Assumption: mutex is unlocked
-  void claim ();
+  void gil_enter ();
   
   // Assumption: mutex is locked
-  void release (bool _notify = true);
+  void gil_leave ();
   
   // Assumption: mutex is locked
-  void yield ()
+  void __yield ()
   {
-    release();
+    gil_leave();
     std::this_thread::yield();
-    claim();
+    gil_enter();
   }
   
   

@@ -37,39 +37,16 @@
 #include <sstream>
 #include <iostream>
 
-
-#include "cppthreads.h"
 #include "threading.h"
 #include "is_something.h"
 #include "rinterpreter.h"
 #include "memory.h"
 
-
-
-__attribute__((constructor))
-static void initialize_threading ()
-{
-  RInterpreterHandle rInterpreter;
-  rInterpreter.claim();
-
-  set_alloc_callback();
-}
-
-__attribute__((destructor))
-static void teardown_threading ()
-{
-  reset_alloc_callback();
-  
-  // TODO make sure we never exit before all threads are joined()
-
-  // TODO is it even needed to release synchronization variables?
-  //      maybe their destructors take care of everything?
-  RInterpreterHandle rInterpreter;
-  rInterpreter.release(false);
-}
+#include "R/Defn.h"
 
 
 
+void thread_runner (SEXP _fun, SEXP _data, SEXP _env);
 
 static void C_thread_finalizer(SEXP ptr);
 
@@ -112,15 +89,15 @@ static void C_thread_finalizer (SEXP ptr)
 {
   if (!R_ExternalPtrAddr(ptr)) return;
   
-  RInterpreterHandle rInterpreter;
-  rInterpreter.claim();
+  RInterpreterLock rInterpreter;
+  rInterpreter.gil_enter();
   
   std::thread * handle = (std::thread*)R_ExternalPtrAddr(ptr);
 
   if (handle->joinable()) {
-    rInterpreter.release();
+    rInterpreter.gil_leave();
     handle->join();
-    rInterpreter.claim();
+    rInterpreter.gil_enter();
   }
   handle->~thread();
 
@@ -128,7 +105,7 @@ static void C_thread_finalizer (SEXP ptr)
 
   R_ClearExternalPtr(ptr); /* not really needed */
   
-  rInterpreter.release();
+  rInterpreter.gil_leave();
 }
 
 
@@ -149,22 +126,77 @@ std::thread * extract_thread_handle (SEXP _handle)
 
 
 
+/*
+ * http://pabercrombie.com/wordpress/2014/05/how-to-call-an-r-function-from-c/
+ *
+ * R_tryEval evaluates the call via R_ToplevelContext; this in turn
+ * (according to main/context.c) will not be left by a long jump.
+ * 
+ * R_ToplevelExec - call fun(data) within a top level context to
+ * insure that this functin cannot be left by a LONGJMP.  R errors in
+ * the call to fun will result in a jump to top level. The return
+ * value is TRUE if fun returns normally, FALSE if it results in a
+ * jump to top level.
+ */
+void thread_runner (SEXP _fun, SEXP _data, SEXP _env)
+{
+  // pass the address of the top of this thread's stack
+  unsigned int base;
+  interpreter_context::create((uintptr_t)&base);
+
+  RInterpreterLock rInterpreter;
+  rInterpreter.gil_enter();
+  
+  SEXP val, call;
+  int errorOccurred;
+  RCNTXT thiscontext;
+  
+  Rf_begincontext(&thiscontext, CTXT_TOPLEVEL, R_NilValue, R_GlobalEnv,
+                  R_BaseEnv, R_NilValue, R_NilValue);
+  
+  // simulate top of the stack
+  R_GlobalContext->nextcontext = nullptr;
+  
+  PROTECT(call = lang2(_fun, _data));
+  PROTECT(val = R_tryEval(call, _env, &errorOccurred));
+
+  Rf_endcontext(&thiscontext);
+  
+  if (errorOccurred) {
+    // TODO store error info in thread's _env
+    fprintf(stderr, "An error occurred when calling `fun`\n");
+    fflush(stderr);
+  } else {
+    defineVar(install("result"), val, _env);
+  }
+  
+  UNPROTECT(2);
+  
+  rInterpreter.gil_leave();
+  interpreter_context::destroy();
+}
+
+
+
+
 
 
 SEXP C_thread_yield ()
 {
-  RInterpreterHandle rInterpreter;
-  rInterpreter.yield();
+  RInterpreterLock rInterpreter;
+  rInterpreter.gil_leave();
+  std::this_thread::yield();
+  rInterpreter.gil_enter();
   return R_NilValue;
 }
 
 
 SEXP C_thread_join (SEXP _handle)
 {
-  RInterpreterHandle rInterpreter;
-  rInterpreter.release();
+  RInterpreterLock rInterpreter;
+  rInterpreter.gil_leave();
   extract_thread_handle(_handle)->join();
-  rInterpreter.claim();
+  rInterpreter.gil_enter();
   return R_NilValue;
 }
 
@@ -179,13 +211,13 @@ SEXP C_thread_print (SEXP _message)
   
   const char * message = translateChar(STRING_ELT(_message, 0));
 
-  RInterpreterHandle rInterpreter;
-  rInterpreter.release();
+  RInterpreterLock rInterpreter;
+  rInterpreter.gil_leave();
   
   std::cout << message;
   std::cout.flush();
   
-  rInterpreter.claim();
+  rInterpreter.gil_enter();
   
   return R_NilValue;
 }
@@ -199,13 +231,13 @@ SEXP C_thread_sleep (SEXP _timeout)
   
   int timeout = INTEGER_DATA(_timeout)[0];
 
-  RInterpreterHandle rInterpreter;
-  rInterpreter.release();
+  RInterpreterLock rInterpreter;
+  rInterpreter.gil_leave();
   
   std::chrono::milliseconds ms{timeout};
   std::this_thread::sleep_for(ms);
   
-  rInterpreter.claim();
+  rInterpreter.gil_enter();
   
   return R_NilValue;
 }
@@ -238,52 +270,17 @@ SEXP C_thread_sum (SEXP _array, SEXP _from, SEXP _to)
   double * array = DOUBLE_DATA(_array);
   double * ptr = array + from;
   
-  RInterpreterHandle rInterpreter;
-  rInterpreter.release();
+  RInterpreterLock rInterpreter;
+  rInterpreter.gil_leave();
   
   for (; from<=to; ++from, ++ptr) {
     sum += *ptr;
   }
 
-  rInterpreter.claim();
+  rInterpreter.gil_enter();
 
   DOUBLE_DATA(ans)[0] = sum;
   UNPROTECT(2);
 
   return ans;
 }
-
-
-
-SEXP C_thread_benchmark (SEXP _n, SEXP _timeout)
-{
-  if (!is_single_integer(_n)) {
-    Rf_error("`n` must be a single integer value");
-  }
-  if (!is_single_integer(_timeout)) {
-    Rf_error("`timeout` must be a single integer value");
-  }
-
-  int n = INTEGER_DATA(_n)[0];
-  int timeout = INTEGER_DATA(_timeout)[0];
-
-  RInterpreterHandle rInterpreter;
-  rInterpreter.release();
-
-  for (int i=0; i<n; ++i)
-  {
-    std::cout << "thread " << std::this_thread::get_id()
-              << " iteration " << i << " of " << n
-              << " sleeping for " << timeout << " milliseconds"
-              << '\n';
-    
-    std::chrono::milliseconds ms{timeout};
-    std::this_thread::sleep_for(ms);
-  }
-
-  rInterpreter.claim();
-  
-  return R_NilValue;
-}
-
-

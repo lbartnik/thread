@@ -64,8 +64,8 @@ extern "C" SEXP C_thread_run_native (SEXP _address, SEXP _args)
   }
   
   // this is run outside of R interpreter; drop Global Interpreter Lock
-  RInterpreterHandle rInterpreter;
-  rInterpreter.release();
+  RInterpreterLock rInterpreter;
+  rInterpreter.gil_leave();
   
   // call the function
   Rboolean rc = R_ToplevelExec(execute_native, (void*)&call);
@@ -75,7 +75,7 @@ extern "C" SEXP C_thread_run_native (SEXP _address, SEXP _args)
 
   UNPROTECT(1);
   
-  rInterpreter.claim();
+  rInterpreter.gil_enter();
   
   return call.ret;
 }

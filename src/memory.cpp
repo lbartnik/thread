@@ -23,9 +23,6 @@
 #include <iostream>
 #include <Rinternals.h>
 
-#include <elf.h>
-
-Elf64_Sym  gbl_sym_table[1] __attribute__((weak));
 
 
 // --- using a patched version of R ------------------------------------
@@ -39,14 +36,11 @@ Elf64_Sym  gbl_sym_table[1] __attribute__((weak));
 #include <Rdefines.h>
 
 
-
-#ifdef ALLOC_VECTOR_3_IS_A_CALLBACK
-
 extern "C" {
 
   typedef SEXP (allocVector3_t)(SEXPTYPE type, R_xlen_t length, R_allocator_t *allocator);
   
-  allocVector3_t Rf_allocVector3_impl;
+  extern allocVector3_t Rf_allocVector3_impl; // comes from the patched Rlib
   allocVector3_t allocVector3_synchronized;
   
 } // extern "C"
@@ -55,12 +49,12 @@ extern "C" {
 
 SEXP allocVector3_synchronized (SEXPTYPE _type, R_xlen_t _len, R_allocator_t* _alloc)
 {
-  RInterpreterHandle rInterpreter;
-  rInterpreter.claim();
+  RInterpreterLock rInterpreter;
+  rInterpreter.gil_enter();
   
   SEXP ret = Rf_allocVector3_impl(_type, _len, _alloc);
   
-  rInterpreter.release();
+  rInterpreter.gil_leave();
   
   return ret;
 }
@@ -91,66 +85,5 @@ extern "C" SEXP C_is_memory_synchronized ()
   UNPROTECT(1);
   return ans;
 }
-
-
-extern "C" SEXP C_memory_allocation_test (SEXP _n, SEXP _size, SEXP _timeout)
-{
-  if (!is_single_integer(_n)) {
-    Rf_error("`n` must be a single integer value");
-  }
-  if (!is_single_integer(_size)) {
-    Rf_error("`size` must be a single integer value");
-  }
-  if (!is_single_integer(_timeout)) {
-    Rf_error("`timeout` must be a single integer value");
-  }
-  
-  int n       = INTEGER_DATA(_n)[0];
-  int size    = INTEGER_DATA(_size)[0];
-  int timeout = INTEGER_DATA(_timeout)[0];
-  
-  
-  SEXP obj;
-  for (int i=0; i<n; ++i) {
-    obj = allocVector(INTSXP, size);
-    
-    std::cout << "thread " << std::this_thread::get_id()
-              << " allocated " << size << " integers, sleeping"
-              << std::endl;
-
-    std::chrono::milliseconds ms{timeout};
-    std::this_thread::sleep_for(ms);
-  }
-
-  return R_NilValue;
-}
-
-
-
-#else /* ALLOC_VECTOR_3_IS_A_CALLBACK */
-
-// noop
-void set_alloc_callback ()
-{
-  std::cout << "memory allocation via allocVector3 is not synchronized\n";
-}
-
-// noop
-void reset_alloc_callback ()
-{
-}
-
-
-extern "C" SEXP C_is_memory_synchronized ()
-{
-  SEXP ans;
-  PROTECT(ans = allocVector(LGLSXP, 1));
-  LOGICAL_DATA(ans)[0] = 0;
-  UNPROTECT(1);
-  return ans;
-}
-
-
-#endif /* ALLOC_VECTOR_3_IS_A_CALLBACK */
 
 
