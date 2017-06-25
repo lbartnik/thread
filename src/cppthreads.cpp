@@ -2,6 +2,7 @@
 
 #include "cppthreads.h"
 #include "rinterpreter.h"
+#include "threads.h"
 
 #include "R/Defn.h"
 
@@ -21,9 +22,10 @@
 void thread_runner (SEXP _fun, SEXP _data, SEXP _env)
 {
   // pass the address of the top of this thread's stack
-  int base;
-  RInterpreterHandle rInterpreter;
-  rInterpreter.init((uintptr_t)&base, R_GlobalContext);
+  unsigned int base;
+  interpreter_context::create((uintptr_t)&base);
+
+  RInterpreterHandle rInterpreter(false);
   rInterpreter.claim();
   
   SEXP val, call;
@@ -52,5 +54,5 @@ void thread_runner (SEXP _fun, SEXP _data, SEXP _env)
   UNPROTECT(2);
   
   rInterpreter.release();
-  rInterpreter.destroy();
+  interpreter_context::destroy();
 }

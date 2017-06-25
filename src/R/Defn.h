@@ -107,12 +107,21 @@ RES   0 0 0 0 0 0 1 = 32
 BUI   0 0 0 0 0 0 0 1 = 64
 */
 
-
+#define PP_REDZONE_SIZE 1000L
 
 extern uintptr_t R_CStackStart;
 extern int R_PPStackTop;
+extern int R_PPStackSize;
+extern SEXP * R_PPStack;
 extern RCNTXT * R_GlobalContext;
 
+typedef struct chained_stack_t {
+  SEXP * stack;
+  int size;
+  int top;
+  struct chained_stack_t * next;
+} chained_stack;
+extern chained_stack chained_stacks;
 
 void Rf_begincontext(RCNTXT*, int, SEXP, SEXP, SEXP, SEXP, SEXP);
 void Rf_endcontext(RCNTXT*);

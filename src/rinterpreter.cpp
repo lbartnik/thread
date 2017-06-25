@@ -12,66 +12,24 @@ std::condition_variable & RInterpreterHandle::interpreter_condition () {
   return condition;
 }
 
-RInterpreterHandle::contexts_type & RInterpreterHandle::interpreter_contexts () {
-  static contexts_type contexts;
-  return contexts;
-}
-
-
-interpreter_context & RInterpreterHandle::get_this_context ()
-{
-  contexts_type::iterator i;
-  i = interpreter_contexts().find(std::this_thread::get_id());
-  if (i != interpreter_contexts().end()) {
-    return i->second;
-  }
-  
-  std::cerr << "no context for thread " << std::this_thread::get_id() << std::endl;
-  static interpreter_context no_context(0, 0);
-  return no_context;
-}
-
-
-void RInterpreterHandle::init (uintptr_t _stack_start, RCNTXT * _global_context)
-{
-  if (DEBUG_THREADS) {
-    std::cerr << "initializing interpreter context for thread "
-              << std::this_thread::get_id()
-              << "; stack_start=" << _stack_start << std::endl;
-  }
-
-  interpreter_context context(_stack_start, _global_context);
-  
-  std::lock_guard<std::recursive_mutex> lock(interpreter_mutex());
-  interpreter_contexts().insert(make_pair(std::this_thread::get_id(), context));
-}
-
-
-void RInterpreterHandle::destroy ()
-{
-  std::lock_guard<std::recursive_mutex> lock(interpreter_mutex());
- 
-  contexts_type::iterator i = interpreter_contexts().find(std::this_thread::get_id());
-  if (i != interpreter_contexts().end()) {
-    interpreter_contexts().erase(i);
-  }
-}
-
 
 void RInterpreterHandle::claim ()
 {
   interpreter_mutex().lock();
-  get_this_context().count += 1;
+  interpreter_context & ctx = interpreter_context::get_this_context();
+  
+  ctx.count += 1;
 
   // if re-entering in the same thread, refresh settings
-  if (get_this_context().count > 1) {
-    get_this_context().pp_stack_top = R_PPStackTop;
+  if (ctx.count > 1) {
+    ctx.link.top = R_PPStackTop;
   }
   // if entering from another thread, restore settings
   else {  
-    R_PPStackTop  = get_this_context().pp_stack_top;
-    R_CStackStart = get_this_context().stack_start;
-    R_GlobalContext = get_this_context().global_context;
+    R_PPStack     = ctx.link.stack;
+    R_PPStackTop  = ctx.link.top;
+    R_CStackStart = ctx.stack_start;
+    R_GlobalContext = ctx.global_context;
   }
   
   if (DEBUG_THREADS) {
@@ -84,9 +42,11 @@ void RInterpreterHandle::claim ()
 
 void RInterpreterHandle::release (bool _notify)
 {
-  get_this_context().count -= 1;
-  get_this_context().pp_stack_top = R_PPStackTop;
-  get_this_context().global_context = R_GlobalContext;
+  interpreter_context & ctx = interpreter_context::get_this_context();
+ 
+  ctx.count -= 1;
+  ctx.link.top = R_PPStackTop;
+  ctx.global_context = R_GlobalContext;
   interpreter_mutex().unlock();
   
   // won't notify when called from library destructor
@@ -95,3 +55,4 @@ void RInterpreterHandle::release (bool _notify)
     interpreter_condition().notify_all();
   }
 }
+
