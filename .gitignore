@@ -36,3 +36,6 @@ vignettes/*.pdf
 # C++
 **/*.o
 **/*.so
+
+# VS Code
+**/.vscode

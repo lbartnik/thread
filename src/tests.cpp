@@ -4,12 +4,15 @@
 
 #include "rinterpreter.h"
 #include "is_something.h"
+#include "debug.h"
 #include <iostream>
 #include <thread>
 
 
 extern "C" SEXP C_memory_allocation_test (SEXP _n, SEXP _size, SEXP _timeout)
 {
+  TRACE_INOUT;
+
   if (!is_single_integer(_n)) {
     Rf_error("`n` must be a single integer value");
   }
@@ -43,6 +46,8 @@ extern "C" SEXP C_memory_allocation_test (SEXP _n, SEXP _size, SEXP _timeout)
 
 SEXP C_single_thread_print_test (SEXP _n, SEXP _timeout)
 {
+  TRACE_INOUT;
+
   if (!is_single_integer(_n)) {
     Rf_error("`n` must be a single integer value");
   }

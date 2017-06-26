@@ -32,6 +32,7 @@
 
 #include "rinterpreter.h"
 #include "is_something.h"
+#include "debug.h"
 
 #include <Rdefines.h>
 
@@ -49,6 +50,8 @@ extern "C" {
 
 SEXP allocVector3_synchronized (SEXPTYPE _type, R_xlen_t _len, R_allocator_t* _alloc)
 {
+//  TRACE_INOUT;
+
   RInterpreterLock rInterpreter;
   rInterpreter.gil_enter();
   

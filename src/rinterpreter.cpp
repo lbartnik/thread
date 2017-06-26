@@ -1,6 +1,7 @@
 #include "rinterpreter.h"
 #include "debug.h"
 #include <iostream>
+#include <algorithm>
 
 std::recursive_mutex & RInterpreterLock::interpreter_mutex () {
   static std::recursive_mutex mutex;
@@ -18,19 +19,15 @@ void RInterpreterLock::gil_enter ()
   interpreter_mutex().lock();
   interpreter_context & ctx = interpreter_context::get_this_context();
   
-  ctx.count += 1;
-
-  // if re-entering in the same thread, abort
-  if (ctx.count > 1) {
-    std::cerr << "entering gil twice\n" << std::endl;
-    abort();
+  // if re-entering in the same thread, dump state
+  //
+  // it seems that re-entering occurs when a thread owns GIL and
+  // then issues a memory allocation request
+  if (ctx.count > 0) {
+    interpreter_context::assert_single_thread_in_gil();
+    // abort();
   }
-
-  // restore settings
-  R_PPStack     = ctx.link.stack;
-  R_PPStackTop  = ctx.link.top;
-  R_CStackStart = ctx.stack_start;
-  R_GlobalContext = ctx.global_context;
+  ctx.enter();
   
   if (DEBUG_THREADS) {
     std::cerr << "claiming interpreter context for thread "
@@ -40,36 +37,31 @@ void RInterpreterLock::gil_enter ()
 }
 
 
-void RInterpreterLock::gil_leave (/* bool _notify */)
+void RInterpreterLock::gil_leave ()
 {
   interpreter_context & ctx = interpreter_context::get_this_context();
- 
-  ctx.count -= 1;
-  ctx.link.top = R_PPStackTop;
-  ctx.global_context = R_GlobalContext;
+  ctx.leave();
   interpreter_mutex().unlock();
   
-  // TODO won't notify when called from library destructor
+  // don't notify when called from library destructor
   // TODO what if there are threads that are still running?
-  // if (_notify) {
-    interpreter_condition().notify_all();
-  // }
+//  if (_notify) {
+//    interpreter_condition().notify_all();
+//  }
 }
 
 
 interpreter_context::interpreter_context (uintptr_t _stack_start,
-                                          SEXP * _pp_stack_start,
-                                          int _stack_top,
-                                          int _stack_size,
-                                          RCNTXT * _global_context)
+                                          chained_stack & _global_link,
+                                          RCNTXT * _global_context,
+                                          int _context_no)
   : stack_start(_stack_start),
     count(0),
-    global_context(_global_context)
-{
-  link.size  = _stack_size;
-  link.top   = _stack_top;
-  link.stack = _pp_stack_start;
-}
+    global_context(_global_context),
+    link(_global_link),
+    thread_id(std::this_thread::get_id()),
+    context_number(_context_no)
+{ }
 
 
 static void insert_into_chain (chained_stack & _link)
@@ -79,10 +71,14 @@ static void insert_into_chain (chained_stack & _link)
 }
 
 interpreter_context::interpreter_context (uintptr_t _stack_start,
-                                          RCNTXT * _global_context)
+                                          RCNTXT * _global_context,
+                                          int _context_no)
   : stack_start(_stack_start),
     count(0),
-    global_context(_global_context)
+    global_context(_global_context),
+    link(local_link),
+    thread_id(std::this_thread::get_id()),
+    context_number(_context_no)
 {
   link.size = R_PPStackSize;
   link.top = 0;
@@ -92,22 +88,29 @@ interpreter_context::interpreter_context (uintptr_t _stack_start,
 }
 
 
+static int thread_count = 0;
+
 void interpreter_context::create()
 {
   ptr new_ctx(new interpreter_context(R_CStackStart,
-                                      R_PPStack, R_PPStackTop,
-                                      R_PPStackSize, R_GlobalContext));
+                                      chained_stacks,
+                                      R_GlobalContext,
+                                      ++thread_count));
   
+  chained_stacks.top = R_PPStackTop;
+
   std::lock_guard<std::recursive_mutex> lock(container_mutex());
   contexts().insert(make_pair(std::this_thread::get_id(), new_ctx));
 
-  insert_into_chain(new_ctx->link);
+  // IMPORTANT! don't put the main context into the chain, it already
+  // there because it is the head
+  // insert_into_chain(new_ctx->link);
 }
 
 
 void interpreter_context::create(uintptr_t _stack_start)
 {
-  ptr new_ctx(new interpreter_context(_stack_start, R_GlobalContext));
+  ptr new_ctx(new interpreter_context(_stack_start, R_GlobalContext, ++thread_count));
   
   std::lock_guard<std::recursive_mutex> lock(container_mutex());
   contexts().insert(make_pair(std::this_thread::get_id(), new_ctx));
@@ -130,10 +133,69 @@ void interpreter_context::destroy ()
     fprintf(stderr, "could not remove link from chain\n");
     fflush(stderr);
   }
-  *ptr = (*ptr)->next;
+  else {
+    *ptr = (*ptr)->next;
+  }
 
   // remove the context object
-  contexts().erase(std::this_thread::get_id());
+  auto i = contexts().find(std::this_thread::get_id());
+  if (i != contexts().end()) {
+    contexts().erase(i);
+  }
+}
+
+
+void interpreter_context::dump_change ()
+{
+  std::cerr //<< "count = " << count << "\n"
+            << "thread[ " << context_number << " ]\n"
+            << "  global: "
+            << "R_PPStack = " << R_PPStack << ", "
+            << "R_PPStackTop = " << R_PPStackTop << ", "
+            << "R_GlobalContext = " << std::hex << R_GlobalContext << std::dec << "\n"
+            << "  this:   "
+            << "R_PPStack = " << link.stack << ", "
+            << "R_PPStackTop = " << link.top << ", "
+            << "R_GlobalContext = " << std::hex << global_context << std::dec << "\n"
+            << std::endl;
+}
+
+
+void interpreter_context::enter ()
+{
+  count += 1;
+  // restore settings
+  //
+  // we can only enter this section if the thread does not own GIL
+  // yet; if it does, the context is out-of-date, and R_PPStackTop
+  // might be already updated; R_PPStack is correct, though
+  //
+  // TODO turn R_PPStack* into pointers to values in the current
+  // link from "chained_stacks" 
+  if (count == 1) {
+    std::cerr << "\nenter()\n";
+    dump_change();
+
+    R_PPStack     = link.stack;
+    R_PPStackTop  = link.top;
+    R_CStackStart = stack_start;
+    R_GlobalContext = global_context;
+  }
+}
+
+
+
+void interpreter_context::leave ()
+{
+  count -= 1;
+  if (count == 0)
+  {
+    std::cerr << "\nleave()\n";
+    dump_change();
+
+    link.top = R_PPStackTop;
+    global_context = R_GlobalContext;
+  }
 }
 
 
@@ -150,23 +212,48 @@ std::recursive_mutex & interpreter_context::container_mutex () {
 }
 
 
-
 interpreter_context & interpreter_context::get_this_context ()
 {
   {
     std::lock_guard<std::recursive_mutex> lock(container_mutex());
     contexts_type::iterator i;
-    i = contexts().find(std::this_thread::get_id());
+    auto id = std::this_thread::get_id(); // valgrind complains about invalid reads
+    i = contexts().find(id);
     if (i != contexts().end()) {
       return *(i->second);
     }
   }
   
   std::cerr << "no context for thread " << std::this_thread::get_id() << std::endl;
-  static interpreter_context no_context(0, 0);
+  static interpreter_context no_context(0, 0, 0);
   return no_context;
 }
 
 
+void interpreter_context::dump_all ()
+{
+  std::lock_guard<std::recursive_mutex> lock(container_mutex());
+  std::for_each(contexts().begin(), contexts().end(), [](auto & pair) {
+    std::cout << "thread " << pair.second->thread_id
+              << ": count=" << pair.second->count << std::endl; 
+  });  
+}
 
+void interpreter_context::assert_single_thread_in_gil ()
+{
+  std::lock_guard<std::recursive_mutex> lock(container_mutex());
+
+  int thread_count = 0;
+  std::for_each(contexts().begin(), contexts().end(), [&](auto & pair) {
+    if (pair.second->count) ++thread_count; 
+  });
+  
+  if (thread_count < 2) return;
+
+  std::cerr << "multiple threads own GIL: ";
+  std::for_each(contexts().begin(), contexts().end(), [&](auto & pair) {
+    if (pair.second->count) std::cerr << pair.first << " "; 
+  });
+  std::cerr << std::endl;
+}
 

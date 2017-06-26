@@ -29,16 +29,20 @@ private:
   typedef std::map<std::thread::id, interpreter_context::ptr> contexts_type;
 
 
-  interpreter_context(const interpreter_context &) {}
+  interpreter_context(const interpreter_context &);
 
+  // master thread
   interpreter_context (uintptr_t _stack_start,
-                       SEXP * _pp_stack_start,
-                       int _stack_top,
-                       int _stack_size,
-                       RCNTXT * _global_context);
+                       chained_stack & _global_link,
+                       RCNTXT * _global_context,
+                       int _context_no);
 
+  // thread pool
   interpreter_context (uintptr_t _stack_start,
-                       RCNTXT * _global_context = nullptr);
+                       RCNTXT * _global_context,
+                       int _context_no);
+
+  void dump_change();
 
   static contexts_type & contexts ();
 
@@ -51,7 +55,15 @@ public:
   uintptr_t stack_start;
   int count;
   RCNTXT * global_context;
-  chained_stack link;
+  chained_stack & link;
+  chained_stack local_link;
+  std::thread::id thread_id;
+  int context_number;
+
+  void enter ();
+
+  void leave ();
+
 
   // main thread, called when DLL is loaded
   static void create();
@@ -61,7 +73,11 @@ public:
 
   static interpreter_context & get_this_context ();
 
-  static void destroy ();  
+  static void destroy ();
+
+  static void dump_all ();
+
+  static void assert_single_thread_in_gil ();
 };
 
 

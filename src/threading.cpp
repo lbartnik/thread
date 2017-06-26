@@ -41,6 +41,7 @@
 #include "is_something.h"
 #include "rinterpreter.h"
 #include "memory.h"
+#include "debug.h"
 
 #include "R/Defn.h"
 
@@ -60,6 +61,8 @@ static void C_thread_finalizer(SEXP ptr);
  */
 SEXP C_create_new_thread (SEXP _fun, SEXP _data, SEXP _env)
 {
+  TRACE_INOUT;
+
   SEXP ans, ptr;
   
   void * handle_ptr = Calloc(1, std::thread);
@@ -111,6 +114,8 @@ static void C_thread_finalizer (SEXP ptr)
 
 std::thread * extract_thread_handle (SEXP _handle)
 {
+  TRACE_INOUT;
+
   SEXP ptr = getAttrib(_handle, install("handle_ptr"));
   if (ptr == R_NilValue) {
     Rf_error("`handle_ptr` attribute not found");
@@ -140,6 +145,8 @@ std::thread * extract_thread_handle (SEXP _handle)
  */
 void thread_runner (SEXP _fun, SEXP _data, SEXP _env)
 {
+  TRACE_INOUT;
+
   // pass the address of the top of this thread's stack
   unsigned int base;
   interpreter_context::create((uintptr_t)&base);
@@ -156,6 +163,7 @@ void thread_runner (SEXP _fun, SEXP _data, SEXP _env)
   
   // simulate top of the stack
   R_GlobalContext->nextcontext = nullptr;
+  interpreter_context::get_this_context().global_context = R_GlobalContext;
   
   PROTECT(call = lang2(_fun, _data));
   PROTECT(val = R_tryEval(call, _env, &errorOccurred));
@@ -183,6 +191,8 @@ void thread_runner (SEXP _fun, SEXP _data, SEXP _env)
 
 SEXP C_thread_yield ()
 {
+  TRACE_INOUT;
+
   RInterpreterLock rInterpreter;
   rInterpreter.gil_leave();
   std::this_thread::yield();
@@ -193,6 +203,8 @@ SEXP C_thread_yield ()
 
 SEXP C_thread_join (SEXP _handle)
 {
+  TRACE_INOUT;
+
   RInterpreterLock rInterpreter;
   rInterpreter.gil_leave();
   extract_thread_handle(_handle)->join();
@@ -201,30 +213,11 @@ SEXP C_thread_join (SEXP _handle)
 }
 
 
-// --- testing utilities -----------------------------------------------
-
-SEXP C_thread_print (SEXP _message)
-{
-  if (!is_single_string(_message)) {
-    Rf_error("`message` must be a single character value");
-  }
-  
-  const char * message = translateChar(STRING_ELT(_message, 0));
-
-  RInterpreterLock rInterpreter;
-  rInterpreter.gil_leave();
-  
-  std::cout << message;
-  std::cout.flush();
-  
-  rInterpreter.gil_enter();
-  
-  return R_NilValue;
-}
-
 
 SEXP C_thread_sleep (SEXP _timeout)
 {
+  TRACE_INOUT;
+
   if (!is_single_integer(_timeout)) {
     Rf_error("`timeout` must be a single integer value");
   }
@@ -243,8 +236,34 @@ SEXP C_thread_sleep (SEXP _timeout)
 }
 
 
+// --- testing utilities -----------------------------------------------
+
+SEXP C_thread_print (SEXP _message)
+{
+  TRACE_INOUT;
+
+  if (!is_single_string(_message)) {
+    Rf_error("`message` must be a single character value");
+  }
+  
+  const char * message = translateChar(STRING_ELT(_message, 0));
+
+  RInterpreterLock rInterpreter;
+  rInterpreter.gil_leave();
+  
+  std::cout << message;
+  std::cout.flush();
+  
+  rInterpreter.gil_enter();
+  
+  return R_NilValue;
+}
+
+
 SEXP C_thread_sum (SEXP _array, SEXP _from, SEXP _to)
 {
+  TRACE_INOUT;
+
   if (!isReal(_array)) {
     Rf_error("`array` must be numeric");
   }

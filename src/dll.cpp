@@ -25,5 +25,8 @@ static void teardown_threading ()
   //      maybe their destructors take care of everything?
   RInterpreterLock rInterpreter;
   rInterpreter.gil_leave();
-  interpreter_context::destroy();
+
+  // map of contexts is a static variable so it will be deallocated
+  // anyway when the library is unloaded
+  //  interpreter_context::destroy();
 }
