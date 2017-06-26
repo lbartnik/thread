@@ -1,0 +1,2 @@
+# restrict gdb to a single thread
+set scheduler-locking step

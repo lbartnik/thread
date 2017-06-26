@@ -85,17 +85,35 @@ public:
 
 
 class RInterpreterLock {
-  
-  
 public:
   
+  struct context_guard {
+    context_guard(RCNTXT * _global_context, int _pp_stack_top)
+      : global_context(_global_context), pp_stack_top(_pp_stack_top)
+    {}
+
+    bool operator == (const context_guard & _other)
+    {
+      return global_context == _other.global_context &&
+             pp_stack_top == _other.pp_stack_top;
+    }
+
+    bool operator != (const context_guard & _other) {
+      return !(*this == _other);
+    }
+
+    RCNTXT * global_context;
+    int pp_stack_top;
+  };
+
   RInterpreterLock () {}
   
   // Assumption: mutex is unlocked
-  void gil_enter ();
+  context_guard gil_enter ();
   
   // Assumption: mutex is locked
   void gil_leave ();
+  void gil_leave (const context_guard &);
   
   // Assumption: mutex is locked
   void __yield ()

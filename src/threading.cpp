@@ -152,23 +152,38 @@ void thread_runner (SEXP _fun, SEXP _data, SEXP _env)
   interpreter_context::create((uintptr_t)&base);
 
   RInterpreterLock rInterpreter;
-  rInterpreter.gil_enter();
+  auto context_guard = rInterpreter.gil_enter();
   
   SEXP val, call;
   int errorOccurred;
-  RCNTXT thiscontext;
+  RCNTXT local_thread_context;
   
-  Rf_begincontext(&thiscontext, CTXT_TOPLEVEL, R_NilValue, R_GlobalEnv,
+  // sets R_GlobalContext to &local_thread_context
+  Rf_begincontext(&local_thread_context, CTXT_TOPLEVEL, R_NilValue, R_GlobalEnv,
                   R_BaseEnv, R_NilValue, R_NilValue);
   
   // simulate top of the stack
-  R_GlobalContext->nextcontext = nullptr;
-  interpreter_context::get_this_context().global_context = R_GlobalContext;
+  local_thread_context.nextcontext = nullptr;
+
+  // update this context; it is initialized with R_GlobalContext
+  // but for this thread this is the actual top of the context
+  // stack
+  interpreter_context::get_this_context().global_context = &local_thread_context;
   
   PROTECT(call = lang2(_fun, _data));
+
+  // WARNING! this is a real fuck-up...
+  //
+  // R_tryEval might call a sequence of functions that will eventually
+  // release GIL; but what is happening to the return value? is it left
+  // unprotected when another thread takes over? or is it only created
+  // under GIL and thus we will never lose it?...
   PROTECT(val = R_tryEval(call, _env, &errorOccurred));
 
-  Rf_endcontext(&thiscontext);
+  // update the stack by the last two PROTECT calls
+  interpreter_context::get_this_context().link.top += 2;
+
+  Rf_endcontext(&local_thread_context);
   
   if (errorOccurred) {
     // TODO store error info in thread's _env
@@ -180,7 +195,7 @@ void thread_runner (SEXP _fun, SEXP _data, SEXP _env)
   
   UNPROTECT(2);
   
-  rInterpreter.gil_leave();
+  rInterpreter.gil_leave(context_guard);
   interpreter_context::destroy();
 }
 

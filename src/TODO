@@ -1,0 +1,9 @@
+What's next?
+
+There seems to be a problem with synchronization:
+  - either PROTECT/UNPROTECT need to happen with a wrapper that maks
+    sure we are accessing the correct R_PPStack
+  - or R_PPStack* variables need to be turned into pointers to the
+    current chained_stack object; this will simplify synchronization
+    on entering and leaving GIL greatly
+

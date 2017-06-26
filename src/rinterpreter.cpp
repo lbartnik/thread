@@ -14,7 +14,7 @@ std::condition_variable & RInterpreterLock::interpreter_condition () {
 }
 
 
-void RInterpreterLock::gil_enter ()
+RInterpreterLock::context_guard RInterpreterLock::gil_enter ()
 {
   interpreter_mutex().lock();
   interpreter_context & ctx = interpreter_context::get_this_context();
@@ -34,6 +34,8 @@ void RInterpreterLock::gil_enter ()
               << std::this_thread::get_id()
               << "; stack_start=" << R_CStackStart << std::endl;
   }
+
+  return context_guard(ctx.global_context, ctx.link.top);
 }
 
 
@@ -42,12 +44,21 @@ void RInterpreterLock::gil_leave ()
   interpreter_context & ctx = interpreter_context::get_this_context();
   ctx.leave();
   interpreter_mutex().unlock();
-  
-  // don't notify when called from library destructor
-  // TODO what if there are threads that are still running?
-//  if (_notify) {
-//    interpreter_condition().notify_all();
-//  }
+}
+
+void RInterpreterLock::gil_leave (const RInterpreterLock::context_guard & _guard)
+{
+  interpreter_context & ctx = interpreter_context::get_this_context();
+  if (context_guard(ctx.global_context, ctx.link.top) != _guard) {
+    std::cerr << "contexts differ on gil_leave():\n"
+              << "local vs. guard\n"
+              << ctx.link.top << " vs. " << _guard.pp_stack_top << "\n"
+              << ctx.global_context << " vs. " << _guard.global_context
+              << std::endl;
+    abort();
+  }
+
+  gil_leave();
 }
 
 
@@ -201,8 +212,11 @@ void interpreter_context::leave ()
 
 
 interpreter_context::contexts_type & interpreter_context::contexts () {
-  static contexts_type contexts;
-  return contexts;
+  // it seems that this static variable is destroyed before
+  // the library destructor is executed; so let's acllocate
+  // it on the heap and pray
+  static contexts_type * contexts = new contexts_type();
+  return *contexts;
 }
 
 
